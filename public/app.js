@@ -2,16 +2,18 @@ import * as THREE from "three";
 import { generateFingerprint } from "./fingerprint.js";
 
 let scene, camera, renderer;
-let starsGeometry, starsMaterial, starsMesh;
+let particlesGeometry, particlesMaterial, particlesMesh;
 let time = 0;
 let warpSpeed = 0;
 let targetWarpSpeed = 0;
 let cameraShake = 0;
+let mouseX = 0;
+let mouseY = 0;
 
 function initScene() {
   scene = new THREE.Scene();
   camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 2000);
-  camera.position.z = 1;
+  camera.position.z = 300;
 
   renderer = new THREE.WebGLRenderer({
     canvas: document.getElementById("bg-canvas"),
@@ -20,39 +22,45 @@ function initScene() {
   });
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.setClearColor(0x050508, 1);
+  renderer.setClearColor(0x030308, 1);
 
-  createStarField();
+  createParticleField();
 
   window.addEventListener("resize", onResize);
+  document.addEventListener("mousemove", onMouseMove);
   animate();
 }
 
-function createStarField() {
-  const count = 1200;
+function createParticleField() {
+  const count = 3000;
   const positions = new Float32Array(count * 3);
   const sizes = new Float32Array(count);
-  const brightness = new Float32Array(count);
+  const speeds = new Float32Array(count);
+  const offsets = new Float32Array(count);
+  const colorMix = new Float32Array(count);
+
+  const spread = 600;
+  const depth = 500;
 
   for (let i = 0; i < count; i++) {
-    const theta = Math.random() * Math.PI * 2;
-    const phi = Math.acos(2 * Math.random() - 1);
-    const r = 80 + Math.random() * 400;
+    positions[i * 3] = (Math.random() - 0.5) * spread;
+    positions[i * 3 + 1] = (Math.random() - 0.5) * depth;
+    positions[i * 3 + 2] = (Math.random() - 0.5) * spread;
 
-    positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
-    positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
-    positions[i * 3 + 2] = r * Math.cos(phi);
-
-    sizes[i] = Math.random() * 1.5 + 0.3;
-    brightness[i] = Math.random();
+    sizes[i] = Math.random() * 5.0 + 1.5;
+    speeds[i] = Math.random() * 0.5 + 0.2;
+    offsets[i] = Math.random() * Math.PI * 2;
+    colorMix[i] = Math.random();
   }
 
-  starsGeometry = new THREE.BufferGeometry();
-  starsGeometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-  starsGeometry.setAttribute("aSize", new THREE.BufferAttribute(sizes, 1));
-  starsGeometry.setAttribute("aBrightness", new THREE.BufferAttribute(brightness, 1));
+  particlesGeometry = new THREE.BufferGeometry();
+  particlesGeometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  particlesGeometry.setAttribute("aSize", new THREE.BufferAttribute(sizes, 1));
+  particlesGeometry.setAttribute("aSpeed", new THREE.BufferAttribute(speeds, 1));
+  particlesGeometry.setAttribute("aOffset", new THREE.BufferAttribute(offsets, 1));
+  particlesGeometry.setAttribute("aColorMix", new THREE.BufferAttribute(colorMix, 1));
 
-  starsMaterial = new THREE.ShaderMaterial({
+  particlesMaterial = new THREE.ShaderMaterial({
     uniforms: {
       uTime: { value: 0 },
       uWarp: { value: 0 },
@@ -60,46 +68,52 @@ function createStarField() {
     },
     vertexShader: `
       attribute float aSize;
-      attribute float aBrightness;
+      attribute float aSpeed;
+      attribute float aOffset;
+      attribute float aColorMix;
       varying float vAlpha;
-      varying float vBrightness;
+      varying float vColorMix;
       uniform float uTime;
       uniform float uWarp;
       uniform float uPixelRatio;
 
       void main() {
-        vBrightness = aBrightness;
+        vColorMix = aColorMix;
 
         vec3 pos = position;
-        float warpOffset = uWarp * pos.z * 0.02;
-        pos.z = mod(pos.z + warpOffset + 200.0, 400.0) - 200.0;
 
-        float twinkle = sin(uTime * (1.0 + aBrightness * 2.0) + aBrightness * 100.0) * 0.3 + 0.7;
-        vAlpha = twinkle * (0.3 + aBrightness * 0.7);
+        float rise = mod(pos.y + uTime * (8.0 + aSpeed * 12.0) + aOffset * 100.0 + uWarp * 40.0, 600.0) - 300.0;
+        pos.y = rise;
+
+        pos.x += sin(uTime * 0.3 * aSpeed + aOffset) * (15.0 + aSpeed * 20.0);
+        pos.z += cos(uTime * 0.2 * aSpeed + aOffset * 1.5) * 10.0;
+
+        float pulse = sin(uTime * (0.5 + aSpeed) + aOffset) * 0.2 + 0.8;
+        float depthFade = smoothstep(350.0, 30.0, abs(pos.z));
+        vAlpha = pulse * depthFade * (0.4 + aSize * 0.08);
 
         vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
-        float depthScale = 60.0 / -mvPosition.z;
-        float warpStretch = 1.0 + uWarp * 0.5;
-        gl_PointSize = aSize * depthScale * uPixelRatio * warpStretch;
+        float warpScale = 1.0 + uWarp * 0.3;
+        gl_PointSize = aSize * (150.0 / -mvPosition.z) * uPixelRatio * warpScale;
         gl_Position = projectionMatrix * mvPosition;
       }
     `,
     fragmentShader: `
       varying float vAlpha;
-      varying float vBrightness;
+      varying float vColorMix;
 
       void main() {
         float dist = length(gl_PointCoord - vec2(0.5));
         if (dist > 0.5) discard;
 
+        float soft = 1.0 - smoothstep(0.0, 0.5, dist);
         float core = 1.0 - smoothstep(0.0, 0.15, dist);
-        float glow = 1.0 - smoothstep(0.0, 0.5, dist);
+        float intensity = core * 0.6 + soft * 0.5;
 
-        float intensity = core * 0.6 + glow * 0.4;
-
-        vec3 coolWhite = vec3(0.85, 0.88, 0.95);
-        vec3 warmWhite = vec3(0.95, 0.9, 0.85);
-        vec3 color = mix(coolWhite, warmWhite, vBrightness);
+        vec3 deepBlue = vec3(0.3, 0.4, 0.75);
+        vec3 paleViolet = vec3(0.6, 0.5, 0.85);
+        vec3 softWhite = vec3(0.8, 0.82, 0.95);
+        vec3 color = mix(deepBlue, mix(paleViolet, softWhite, vColorMix * 0.6), vColorMix);
 
         gl_FragColor = vec4(color, intensity * vAlpha);
       }
@@ -109,12 +123,12 @@ function createStarField() {
     depthWrite: false,
   });
 
-  starsMesh = new THREE.Points(starsGeometry, starsMaterial);
-  scene.add(starsMesh);
+  particlesMesh = new THREE.Points(particlesGeometry, particlesMaterial);
+  scene.add(particlesMesh);
 }
 
 function triggerWarp() {
-  targetWarpSpeed = 8;
+  targetWarpSpeed = 10;
 
   setTimeout(() => {
     targetWarpSpeed = 0;
@@ -125,12 +139,17 @@ function triggerShake() {
   cameraShake = 1;
 }
 
+function onMouseMove(e) {
+  mouseX = (e.clientX / window.innerWidth - 0.5) * 2;
+  mouseY = (e.clientY / window.innerHeight - 0.5) * 2;
+}
+
 function onResize() {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
-  if (starsMaterial) {
-    starsMaterial.uniforms.uPixelRatio.value = Math.min(window.devicePixelRatio, 2);
+  if (particlesMaterial) {
+    particlesMaterial.uniforms.uPixelRatio.value = Math.min(window.devicePixelRatio, 2);
   }
 }
 
@@ -140,26 +159,26 @@ function animate() {
 
   warpSpeed += (targetWarpSpeed - warpSpeed) * 0.04;
 
-  if (starsMaterial) {
-    starsMaterial.uniforms.uTime.value = time;
-    starsMaterial.uniforms.uWarp.value = warpSpeed;
+  if (particlesMaterial) {
+    particlesMaterial.uniforms.uTime.value = time;
+    particlesMaterial.uniforms.uWarp.value = warpSpeed;
   }
 
-  if (starsMesh) {
-    starsMesh.rotation.y = time * 0.003;
-    starsMesh.rotation.x = Math.sin(time * 0.002) * 0.02;
-  }
+  const targetX = mouseX * 15;
+  const targetY = -mouseY * 10;
+  camera.position.x += (targetX - camera.position.x) * 0.02;
+  camera.position.y += (targetY - camera.position.y) * 0.02;
+
+  camera.position.y += Math.sin(time * 0.15) * 0.3;
+  camera.position.x += Math.cos(time * 0.1) * 0.2;
 
   if (cameraShake > 0.01) {
-    camera.position.x = Math.sin(time * 40) * cameraShake * 0.15;
-    camera.position.y = Math.cos(time * 35) * cameraShake * 0.15;
+    camera.position.x += Math.sin(time * 40) * cameraShake * 0.15;
+    camera.position.y += Math.cos(time * 35) * cameraShake * 0.15;
     cameraShake *= 0.94;
-  } else {
-    camera.position.x *= 0.95;
-    camera.position.y *= 0.95;
-    cameraShake = 0;
   }
 
+  camera.lookAt(0, 0, 0);
   renderer.render(scene, camera);
 }
 
