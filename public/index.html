@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>THE SILENT FLOOD</title>
+
+  <meta name="description" content="One button. One planet. One number. Join the flood.">
+  <meta property="og:title" content="THE SILENT FLOOD">
+  <meta property="og:description" content="I joined the flood. Have you?">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="THE SILENT FLOOD">
+  <meta name="twitter:description" content="One button. One planet. One number.">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Space+Mono:wght@400;700&display=swap"
+    rel="stylesheet">
+
+  <link rel="stylesheet" href="/style.css">
+</head>
+
+<body>
+  <canvas id="bg-canvas"></canvas>
+
+  <div id="app">
+    <header id="top-bar">
+      <div class="logo-text">THE SILENT FLOOD</div>
+    </header>
+
+    <main id="main-content">
+      <section id="pre-shift">
+        <div id="counter-section">
+          <p id="counter-label">have joined the flood</p>
+          <div id="counter">
+            <span id="counter-value">---</span>
+          </div>
+        </div>
+
+        <div id="button-section">
+          <button id="shift-btn" aria-label="Join the flood">
+            <span class="btn-text">join the flood</span>
+          </button>
+        </div>
+      </section>
+
+      <section id="post-shift" class="hidden">
+        <div id="ceremony">
+          <div id="ceremony-step-1" class="ceremony-step">
+            <p class="ceremony-text fade-text">the water is rising.</p>
+          </div>
+          <div id="ceremony-step-2" class="ceremony-step hidden">
+            <p class="ceremony-text fade-text">you're already underwater.</p>
+          </div>
+          <div id="ceremony-step-3" class="ceremony-step hidden">
+            <p class="ceremony-label fade-text">you are now</p>
+            <p id="badge-number" class="ceremony-number fade-text">#1</p>
+          </div>
+          <div id="ceremony-step-4" class="ceremony-step hidden">
+            <div id="final-badge">
+              <p class="badge-top">FLOOD</p>
+              <p id="final-number" class="badge-main">#1</p>
+              <div class="badge-divider"></div>
+              <p class="badge-bottom">part of the flood. forever.</p>
+            </div>
+            <div id="post-counter">
+              <span id="post-counter-value">0</span>
+              <span class="post-counter-label">have joined the flood</span>
+            </div>
+            <button id="share-btn">share your number</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer id="bottom-bar">
+      <a href="https://www.threads.com/@hsnriquemartins" target="_blank" rel="noopener" class="credit-link">
+        The Silent Flood guy →
+      </a>
+    </footer>
+
+    <div id="flash-overlay"></div>
+  </div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js"
+    }
+  }
+  </script>
+  <script type="module" src="/app.js"></script>
+</body>
+
+</html>
